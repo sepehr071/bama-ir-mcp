@@ -293,13 +293,18 @@ async def ba_ad(
     kind, x = await _detail(code, kind)
     d, s = x["detail"], x.get("specs") or {}
     out = _ad(x, full=True)
+    # motorcycle and truck details carry no brand/model keys; the breadcrumb has them (/motorcycle/zontes, /motorcycle/zontes-z4250t)
+    crumbs = [(c.get("url") or "").strip("/").split("/")[-1] for c in (x.get("breadcrump") or {}).get("links") or []]
+    keys = [c for c in crumbs[2:4] if c]
+    brand_key = keys[0] if keys else None
+    model_key = keys[1].removeprefix(f"{brand_key}-") if len(keys) > 1 else None
     out.update(
         {
             "kind": kind,
             "ads_of_same_model": (x.get("ads_statistics") or {}).get("model"),
             "ads_of_same_trim": (x.get("ads_statistics") or {}).get("trim"),
-            "brand": d.get("brand"),
-            "model": d.get("model"),
+            "brand": d.get("brand") or brand_key,
+            "model": d.get("model") or model_key,
             "trim_key": d.get("trim_en"),
             "body_type": (d.get("body") or {}).get("display_name"),
             "province": d.get("province"),

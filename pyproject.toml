@@ -1,6 +1,6 @@
 [project]
 name = "bama-ir-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Unofficial read-only MCP server for Bama (bama.ir), the Iranian car marketplace: car ads, market prices, new-car price lists."
 readme = "README.md"
 license = "MIT"
