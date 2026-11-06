@@ -36,7 +36,7 @@ PAGE_ADS = 30  # the API ignores pageSize above its default and returns up to 30
 Vehicle = Annotated[
     list[str] | None,
     Field(
-        description="Brand, model or trim values from ba_vehicles, e.g. ['samand'], ['samand,lx'], ['peugeot,206ir,type2']. Several values mean any of them.",
+        description="Values from ba_vehicles: brand, brand,model or brand,model,trim, e.g. ['samand,lx']. Several = any.",
         max_length=10,
     ),
 ]
@@ -173,63 +173,42 @@ async def _list(q: list[tuple[str, Any]], kind: str = "car") -> dict[str, Any]:
 @tool("Search car ads")
 async def ba_search(
     vehicle: Vehicle = None,
-    year_from: Annotated[
-        int | None, Field(description="Earliest production year, Jalali (e.g. 1395).", ge=1300, le=1500)
-    ] = None,
-    year_to: Annotated[
-        int | None, Field(description="Latest production year, Jalali (e.g. 1400).", ge=1300, le=1500)
-    ] = None,
+    year_from: Annotated[int | None, Field(description="Earliest year, Jalali.", ge=1300, le=1500)] = None,
+    year_to: Annotated[int | None, Field(description="Latest year, Jalali.", ge=1300, le=1500)] = None,
     price_from: Annotated[int | None, Field(description="Minimum price in Toman.", ge=0)] = None,
     price_to: Annotated[int | None, Field(description="Maximum price in Toman.", ge=0)] = None,
-    mileage_from: Annotated[
-        int | None, Field(description="Minimum mileage in km. 0 with mileage_to=0 means zero-km cars.", ge=0)
-    ] = None,
-    mileage_to: Annotated[int | None, Field(description="Maximum mileage in km.", ge=0)] = None,
+    mileage_from: Annotated[int | None, Field(description="Minimum km.", ge=0)] = None,
+    mileage_to: Annotated[int | None, Field(description="Maximum km (0 = zero-km only).", ge=0)] = None,
     region: Annotated[
         list[str] | None,
-        Field(
-            description="State or city values from ba_filters kind=region, e.g. ['tehran'] or ['isfahan,kashan'].",
-            max_length=10,
-        ),
+        Field(description="ba_filters kind=region values, e.g. ['tehran'], ['isfahan,kashan'].", max_length=10),
     ] = None,
-    seller: Annotated[
-        Literal["dealer", "private"] | None, Field(description="Only dealers (showrooms) or only private sellers.")
-    ] = None,
+    seller: Literal["dealer", "private"] | None = None,
     transmission: Literal["manual", "automatic"] | None = None,
-    body: Annotated[Many, Field(description="Body values from ba_filters kind=body, e.g. ['suv'].")] = None,
-    fuel: Annotated[Many, Field(description="Fuel values from ba_filters kind=fuel, e.g. ['gasoline'].")] = None,
-    color: Annotated[Many, Field(description="Color values from ba_filters kind=color, e.g. ['white'].")] = None,
-    country: Annotated[
-        Many, Field(description="Maker country values from ba_filters kind=country, e.g. ['Chinese'].")
-    ] = None,
-    body_status: Annotated[
-        Many, Field(description="Paint/body condition values from ba_filters kind=body_status, e.g. ['no_paint'].")
-    ] = None,
-    cylinder: Annotated[Many, Field(description="Values from ba_filters kind=cylinder, e.g. ['four'].")] = None,
-    drive: Annotated[Many, Field(description="Drive-train values from ba_filters kind=drive, e.g. ['awd'].")] = None,
-    lifestyle: Annotated[
-        Many, Field(description="Lifestyle values from ba_filters kind=lifestyle (e.g. family, sport).")
-    ] = None,
-    origin: Annotated[
-        Many, Field(description="Origin values from ba_filters kind=origin (e.g. domestic, imported, assembled).")
-    ] = None,
+    body: Annotated[Many, Field(description="ba_filters kind=body values, e.g. ['suv'].")] = None,
+    fuel: Annotated[Many, Field(description="ba_filters kind=fuel values.")] = None,
+    color: Annotated[Many, Field(description="ba_filters kind=color values, e.g. ['white'].")] = None,
+    country: Annotated[Many, Field(description="ba_filters kind=country values.")] = None,
+    body_status: Annotated[Many, Field(description="ba_filters kind=body_status values (paint condition).")] = None,
+    cylinder: Annotated[Many, Field(description="ba_filters kind=cylinder values.")] = None,
+    drive: Annotated[Many, Field(description="ba_filters kind=drive values.")] = None,
+    lifestyle: Annotated[Many, Field(description="ba_filters kind=lifestyle values.")] = None,
+    origin: Annotated[Many, Field(description="ba_filters kind=origin values.")] = None,
     with_photo: Annotated[bool, Field(description="Only ads with photos.")] = False,
-    with_price: Annotated[bool, Field(description="Only ads that state a price (hides 'negotiable').")] = False,
-    installment: Annotated[bool, Field(description="Only installment (اقساطی) ads.")] = False,
-    presale: Annotated[bool, Field(description="Only presale or allocation-letter (حواله) ads.")] = False,
+    with_price: Annotated[bool, Field(description="Only ads with a stated price.")] = False,
+    installment: Annotated[bool, Field(description="Only installment ads.")] = False,
+    presale: Annotated[bool, Field(description="Only presale (حواله) ads.")] = False,
     sort: Literal["relevance", "expensive", "cheapest", "newest", "oldest", "lowest_mileage"] = "relevance",
-    page: Annotated[int, Field(description="0-based page; each page holds up to 30 ads.", ge=0, le=50)] = 0,
+    page: Annotated[int, Field(description="0-based page (30 ads).", ge=0, le=50)] = 0,
     description_chars: Annotated[
-        int, Field(description="Include this many characters of each ad's text (0 = none).", ge=0, le=300)
+        int, Field(description="Characters of each ad's text to include (0 = none).", ge=0, le=300)
     ] = 0,
 ) -> dict[str, Any]:
-    """Search used and new car ads on Bama (bama.ir) with filters; returns up to 30 compact ads per page.
+    """Search used and new car ads on Bama (bama.ir) with filters; up to 30 compact ads per page.
 
-    Use it for "find me X under Y" questions. Get brand/model values from ba_vehicles and region, body, fuel and
-    color values from ba_filters. Prices are Toman; year is Jalali (imports can show a Gregorian year); mileage_km 0
-    means zero-km. Then call ba_ad with a code for full details, or ba_market_stats for price statistics. The site
-    gives no total count: keep paging while has_more is true (ba_ad reports the real number of ads for one model).
-    Motorcycles and trucks are searched with ba_search_bikes_trucks.
+    Get vehicle values from ba_vehicles and other values from ba_filters. Prices Toman, mileage_km 0 = zero-km.
+    Then ba_ad for one code, ba_market_stats for statistics. No total count: page while has_more is true.
+    Motorcycles and trucks: ba_search_bikes_trucks.
     """
     args = dict(locals())
     args.pop("description_chars")
@@ -278,17 +257,14 @@ async def ba_ad(
     code: Annotated[str, Field(description="Ad code from ba_search, e.g. 4avpuyq7.", pattern=r"^[A-Za-z0-9]{6,12}$")],
     kind: Annotated[
         Literal["auto", "car", "motorcycle", "truck"],
-        Field(description="Section of the ad. auto tries car, then motorcycle, then truck."),
+        Field(description="Section; auto tries car, motorcycle, truck."),
     ] = "auto",
-    similar: Annotated[
-        int, Field(description="Also list this many similar car ads (0 = none). Car ads only.", ge=0, le=12)
-    ] = 0,
+    similar: Annotated[int, Field(description="Also list this many similar car ads (cars only).", ge=0, le=12)] = 0,
 ) -> dict[str, Any]:
     """Get one Bama ad (car, motorcycle or truck) in full: price, specs, condition, seller, description and photos.
 
-    Use it after ba_search or ba_search_bikes_trucks for a promising ad. ads_of_same_model and ads_of_same_trim
-    are the real number of live ads for that car (the "N related ads" on the ad page). similar adds comparable
-    car ads; similar_total counts Bama's wider similar pool. Phone numbers are masked by Bama, not available here.
+    Use after ba_search or ba_search_bikes_trucks. ads_of_same_model / ads_of_same_trim are the real live ad
+    counts; similar_total counts Bama's wider pool. Phone numbers are not available.
     """
     kind, x = await _detail(code, kind)
     d, s = x["detail"], x.get("specs") or {}
@@ -341,25 +317,19 @@ def _stats(vals: list[int]) -> dict[str, int | None]:
 @tool("Used-car market price stats")
 async def ba_market_stats(
     vehicle: Vehicle = None,
-    year_from: Annotated[int | None, Field(ge=1300, le=1500, description="Earliest production year, Jalali.")] = None,
-    year_to: Annotated[int | None, Field(ge=1300, le=1500, description="Latest production year, Jalali.")] = None,
-    region: Annotated[
-        list[str] | None, Field(description="State or city values from ba_filters kind=region.", max_length=10)
-    ] = None,
-    mileage_from: Annotated[int | None, Field(ge=0, description="Minimum mileage in km.")] = None,
-    mileage_to: Annotated[int | None, Field(ge=0, description="Maximum mileage in km (0 = zero-km only).")] = None,
+    year_from: Annotated[int | None, Field(ge=1300, le=1500, description="Earliest year, Jalali.")] = None,
+    year_to: Annotated[int | None, Field(ge=1300, le=1500, description="Latest year, Jalali.")] = None,
+    region: Annotated[list[str] | None, Field(description="ba_filters kind=region values.", max_length=10)] = None,
+    mileage_from: Annotated[int | None, Field(ge=0, description="Minimum km.")] = None,
+    mileage_to: Annotated[int | None, Field(ge=0, description="Maximum km (0 = zero-km only).")] = None,
     transmission: Literal["manual", "automatic"] | None = None,
     seller: Literal["dealer", "private"] | None = None,
-    pages: Annotated[
-        int, Field(description="How many result pages to sample (30 ads each). More is slower.", ge=1, le=5)
-    ] = 3,
+    pages: Annotated[int, Field(description="Pages to sample (30 ads each); more is slower.", ge=1, le=5)] = 3,
 ) -> dict[str, Any]:
     """Price statistics (min, quartiles, median, max, per year) for a car model from live Bama ads.
 
-    Use it for "what is a 1398 Peugeot 206 worth" questions. It samples the first pages of the newest-updated
-    matching ads, keeps only ads with a fixed price (no negotiable, installment or presale ads) and reports Toman.
-    It is a sample of asking prices, not a full census nor sale prices. Narrow with year, mileage and region for
-    a tighter range, then use ba_search with sort=cheapest to see the actual ads.
+    Samples the newest matching ads with a fixed price (no negotiable, installment or presale), Toman. Asking
+    prices, not sale prices. Narrow with year, mileage, region; ba_search sort=cheapest shows the ads.
     """
     base = dict(
         vehicle=vehicle,
@@ -392,23 +362,18 @@ async def ba_market_stats(
         "median_mileage_km": int(statistics.median(kms)) if kms else None,
         "by_year": {y: _stats(v) for y, v in sorted(by_year.items(), reverse=True)},
         "more_ads_exist": more,
-        "note": "Asking prices from the sampled newest ads with a fixed price; not sale prices.",
     }
 
 
 @tool("Dealers selling a model")
 async def ba_dealers(
     vehicle: Vehicle = None,
-    region: Annotated[
-        list[str] | None, Field(description="State or city values from ba_filters kind=region.", max_length=10)
-    ] = None,
-    pages: Annotated[int, Field(description="Result pages to scan (30 ads each).", ge=1, le=4)] = 2,
+    region: Annotated[list[str] | None, Field(description="ba_filters kind=region values.", max_length=10)] = None,
+    pages: Annotated[int, Field(description="Pages to scan (30 ads each).", ge=1, le=4)] = 2,
 ) -> dict[str, Any]:
     """List car dealers (showrooms) with ads for a model or city on Bama, with address, rating and how many ads match.
 
-    Use it for "where can I buy X from a dealer". Scans the first pages of dealer-only ads; dealer ids and names
-    come from the ads, and each dealer's own listing is at the returned url. Then call ba_search with seller=dealer
-    for the ads themselves.
+    Scans the first pages of dealer-only ads. Then ba_dealer_ads for one showroom or ba_search seller=dealer.
     """
     found: dict[Any, dict[str, Any]] = {}
     for i in range(pages):
@@ -458,22 +423,19 @@ async def ba_vehicles(
     query: Annotated[
         str | None,
         Field(
-            description="Brand, model or trim name in Persian or English, e.g. 'پژو 206', 'samand', 'soren'.",
+            description="Brand/model/trim name, Persian or English, e.g. 'پژو 206'.",
             max_length=60,
         ),
     ] = None,
     brand: Annotated[
-        str | None, Field(description="A brand value, e.g. 'peugeot': lists all its models and trims.", max_length=40)
+        str | None, Field(description="Brand value, e.g. 'peugeot': lists its models and trims.", max_length=40)
     ] = None,
-    vehicle_type: Annotated[
-        Literal["car", "motorcycle", "truck"], Field(description="Section to look in (default car).")
-    ] = "car",
+    vehicle_type: Annotated[Literal["car", "motorcycle", "truck"], Field(description="Section.")] = "car",
 ) -> dict[str, Any]:
     """Look up the brand, model and trim values that ba_search, ba_market_stats and ba_new_prices take.
 
-    Give query to find matches (up to 25) or brand to list one brand's models and trims; with neither it lists all
-    brands. A value looks like 'samand', 'samand,lx' or 'peugeot,206ir,type2': brand, brand,model, brand,model,trim.
-    Use vehicle_type motorcycle or truck for ba_search_bikes_trucks values.
+    query finds matches (up to 25); brand lists its models and trims; neither lists all brands. Values look like
+    'samand', 'samand,lx', 'peugeot,206ir,type2'. vehicle_type motorcycle/truck feeds ba_search_bikes_trucks.
     """
     nodes = await _vehicle_nodes(vehicle_type)
     if brand:
@@ -518,21 +480,19 @@ async def ba_filters(
     query: Annotated[
         str | None,
         Field(
-            description="For region and usage: part of a name (Persian or English) to find its value.",
+            description="Region/usage only: part of a name (Persian or English).",
             max_length=40,
         ),
     ] = None,
     vehicle_type: Annotated[
         Literal["car", "motorcycle", "truck"],
-        Field(description="Section the values are for (default car). usage is for trucks."),
+        Field(description="Section (usage is for trucks)."),
     ] = "car",
 ) -> dict[str, Any]:
     """List the allowed values of one ba_search filter (states and cities, body types, fuels, colors, years...).
 
-    Use it before ba_search when you need an exact value, e.g. kind=region query=اصفهان gives 'isfahan'. Region lists
-    states only unless query is given. transmission needs no lookup: manual or automatic.
-    For trucks use vehicle_type=truck kind=usage (e.g. 'tractor', 'truck,axle1,tanker'); for motorcycles
-    vehicle_type=motorcycle kind=body, fuel or color. Not every kind exists for every section.
+    E.g. kind=region query=اصفهان gives 'isfahan'; region lists states only unless query is given. Trucks:
+    vehicle_type=truck kind=usage; motorcycles: kind=body, fuel or color. Not every kind exists for every section.
     """
     data = await _filter(kind, vehicle_type)
     if kind in ("region", "usage"):
@@ -564,31 +524,26 @@ def _trend(history: list[dict[str, Any]]) -> dict[str, Any] | None:
 async def ba_new_prices(
     brand: Annotated[
         str,
-        Field(
-            description="Brand value from ba_vehicles, e.g. 'samand', 'peugeot', 'mvm'.", min_length=2, max_length=40
-        ),
+        Field(description="Brand value from ba_vehicles, e.g. 'samand'.", min_length=2, max_length=40),
     ],
     model: Annotated[
         str | None,
-        Field(description="Model value, e.g. 'soren' or '206ir'. Omit for all of the brand's models.", max_length=40),
+        Field(description="Model value, e.g. 'soren'. Omit for the whole brand.", max_length=40),
     ] = None,
-    history_days: Annotated[
-        int, Field(description="Include this many recent price points per trim (0 = none).", ge=0, le=60)
-    ] = 0,
+    history_days: Annotated[int, Field(description="Recent price points per trim (0 = none).", ge=0, le=60)] = 0,
     trim: Annotated[
         str | None,
         Field(
-            description="Trim key (trim_key in a result, e.g. 'pluscng') to list one trim only; needs model.",
+            description="trim_key from a result, e.g. 'pluscng'; needs model.",
             max_length=40,
         ),
     ] = None,
 ) -> dict[str, Any]:
     """Current price of every new-car trim of a brand or model on Bama's price list (market price or factory price).
 
-    Use it for "how much is a zero Samand Soren today": each row is one trim and year with price in Toman,
-    provider (قیمت بازار market, قیمت کارخانه factory, قیمت نمایندگی dealer), daily change percent and a trend over
-    the last 30 quoted prices. Compare with ba_market_stats for the used market. Brand-wide queries can list many trims;
-    pass model and trim for one. ba_price_list searches all brands, ba_car_specs gives the technical data.
+    Each row is one trim and year: Toman price, provider (قیمت بازار market, قیمت کارخانه factory, قیمت نمایندگی
+    dealer), daily change percent and a 30-quote trend. Brand-wide queries can be long; pass model and trim for
+    one. See also ba_price_list (all brands), ba_market_stats (used), ba_car_specs.
     """
     params = {"brand": brand} | ({"model": model} if model else {}) | ({"trim": trim} if trim and model else {})
     r = await fetch("/cad/api/price/detail", params)
