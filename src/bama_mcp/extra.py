@@ -221,14 +221,11 @@ async def ba_market_pulse(
     The analysis is Bama's Persian text. Movers are new cars with the largest price change; follow up with
     ba_new_prices or ba_price_list.
     """
-    pulse_r, slider_r = await asyncio.gather(
-        fetch("/gen/api/HomePage/market-pulse"),
-        fetch("/cad/api/Price/slider", {"distinct": "true"}) if movers else asyncio.sleep(0, {}),
-    )
-    pulse = pulse_r.get("data") or {}
+    pulse = (await fetch("/gen/api/HomePage/market-pulse")).get("data") or {}
     rows = []
     if movers:
-        for i in (slider_r.get("data") or [])[:movers]:
+        await asyncio.sleep(0.3)
+        for i in ((await fetch("/cad/api/Price/slider", {"distinct": "true"})).get("data") or [])[:movers]:
             rows.append(
                 {
                     "brand": i.get("brand_fa"),
