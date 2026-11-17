@@ -549,9 +549,17 @@ async def ba_new_prices(
     r = await fetch("/cad/api/price/detail", params)
     d = r.get("data") or {}
     if not d.get("items"):
-        raise ApiError(
-            f"No price list for {brand}{'/' + model if model else ''}. Check the values with ba_vehicles.", 404
-        )
+        hint = "Check the values with ba_vehicles."
+        if model:  # the model usually guessed a wrong model value: name the real ones
+            try:
+                models = [
+                    n["value"].split(",")[1] for n in await _vehicle_nodes() if n["value"].startswith(brand + ",")
+                ]
+            except ApiError:
+                models = []
+            if models:
+                hint = f"Models of {brand}: {', '.join(dict.fromkeys(models))}."
+        raise ApiError(f"No price list for {brand}{'/' + model if model else ''}. {hint}", 404)
     rows = []
     for it in d["items"]:
         x = it["detail"]

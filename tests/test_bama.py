@@ -161,6 +161,13 @@ async def test_new_prices_empty_is_an_error(client, api):
     assert r.is_error and "No price list" in r.content[0].text
 
 
+async def test_new_prices_wrong_model_lists_the_brands_models(client, api):
+    api["/cad/api/price/detail"] = {"status": True, "data": {"items": []}}
+    api["/cad/api/filter/vehicle"] = fixture("vehicles.json")
+    r = await client.call_tool("ba_new_prices", {"brand": "samand", "model": "nope"})
+    assert r.is_error and "Models of samand:" in r.content[0].text and "soren" in r.content[0].text
+
+
 async def test_browser_check_page_is_reported(client, api):
     api["/cad/api/search"] = lambda request: httpx.Response(200, text="<html>checking your browser</html>")
     r = await client.call_tool("ba_search", {})
